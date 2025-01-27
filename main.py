@@ -2,26 +2,29 @@ import streamlit as st
 import time
 import random
 
-# Настройки страницы (необязательно)
+# Настройки (необязательно)
 st.set_page_config(page_title="Interview Math Test", layout="centered")
 
-# 1) Инициализация ключей в session_state, чтобы избежать KeyError
+# Инициализация необходимых ключей в session_state
 if "test_started" not in st.session_state:
     st.session_state.test_started = False
 if "start_time" not in st.session_state:
     st.session_state.start_time = 0.0
 if "time_left" not in st.session_state:
-    st.session_state.time_left = 300  # 5 минут в секундах
+    st.session_state.time_left = 300  # 5 минут (300 секунд)
 if "current_q" not in st.session_state:
     st.session_state.current_q = 0
 if "questions" not in st.session_state:
-    # Сгенерируем 50 пар (A, B) для задач 2*A - B
-    st.session_state.questions = [(random.randint(10, 99), random.randint(10, 99)) for _ in range(50)]
+    # Генерируем 30 пар (A, B) двузначных чисел
+    st.session_state.questions = [
+        (random.randint(10, 99), random.randint(10, 99)) 
+        for _ in range(30)
+    ]
 if "user_answers" not in st.session_state:
-    st.session_state.user_answers = [None] * 50
+    st.session_state.user_answers = [None] * 30
 
 def calculate_score():
-    """Подсчитать количество правильных ответов (2*A - B)."""
+    """Подсчитывает число правильных ответов."""
     correct_count = 0
     for i, (A, B) in enumerate(st.session_state.questions):
         correct_val = 2 * A - B
@@ -34,54 +37,62 @@ def calculate_score():
                 pass
     return correct_count
 
-# Заголовок приложения
 st.title("Interview Math Test")
 st.write(
-    "You have **5 minutes** to solve up to 50 questions. Each question is of the form **2*A - B**.\n"
-    "Press **Start** to begin the timer."
+    "Solve each expression: **2*A - B**.\n\n"
+    "You have **5 minutes** in total. Press **Start** to begin."
 )
 
-# 2) Логика запуска теста
+# Если тест ещё не запущен, показываем кнопку Start
 if not st.session_state.test_started:
-    # Пока не нажали "Start"
     if st.button("Start"):
         st.session_state.test_started = True
-        st.session_state.start_time = time.time()  # запоминаем текущий момент
-        st.session_state.time_left = 300          # сбрасываем таймер на 5 минут
+        st.session_state.start_time = time.time()
+        st.session_state.time_left = 300  # сбрасываем на 5 минут
 else:
-    # Тест уже идёт: считаем, сколько осталось времени
+    # Тест уже идёт: рассчитываем, сколько осталось времени
     elapsed = time.time() - st.session_state.start_time
     st.session_state.time_left = 300 - int(elapsed)
     if st.session_state.time_left < 0:
-        st.session_state.time_left = 0  # зажимаем на 0, если время вышло
+        st.session_state.time_left = 0
 
-    # Выводим оставшееся время
     st.markdown(f"**Time left:** {st.session_state.time_left} seconds")
 
-    # 3) Проверяем, закончилось ли время или все вопросы отвечены
-    if st.session_state.time_left == 0 or st.session_state.current_q >= 50:
+    # Проверяем, вышло ли время или пройдены все вопросы
+    if st.session_state.time_left == 0 or st.session_state.current_q >= 30:
         score = calculate_score()
-        st.write(f"**Your final score:** {score} out of 50")
-        st.stop()  # останавливаем дальнейший код
+        st.write(f"**Your final score:** {score} out of 30")
+        st.stop()
 
-    # 4) Прогресс-бар (0..1)
-    progress_val = st.session_state.current_q / 50
+    # Прогресс-бар
+    progress_val = st.session_state.current_q / 30
     st.progress(progress_val)
 
-    # 5) Текущий вопрос
+    # Текущий вопрос
     A, B = st.session_state.questions[st.session_state.current_q]
-    st.subheader(f"Question {st.session_state.current_q + 1} of 50")
+    st.subheader(f"Question {st.session_state.current_q + 1} of 30")
     user_answer = st.text_input(
-        f"Calculate 2*{A} - {B} =",
-        key=f"answer_{st.session_state.current_q}"  # чтобы привязать значение к номеру вопроса
+        f"Calculate 2 * {A} - {B} =", 
+        key=f"answer_{st.session_state.current_q}"
+    )
+    # JS-сниппет: после каждого рендера возвращаем фокус на последний text_input
+    st.markdown(
+        """
+        <script>
+        // Найдём все инпуты Streamlit
+        var inputs = window.parent.document.querySelectorAll('input[data-baseweb="input"]');
+        // Возьмём последний (текущий) и установим фокус
+        if(inputs.length > 0){
+            inputs[inputs.length - 1].focus();
+        }
+        </script>
+        """,
+        unsafe_allow_html=True
     )
 
-    # 6) При нажатии "Submit" сохраняем ответ и переходим к следующему вопросу
+    # Обрабатываем клик на "Submit"
     if st.button("Submit"):
         st.session_state.user_answers[st.session_state.current_q] = user_answer
         st.session_state.current_q += 1
-        # Без experimental_rerun: просто обновим интерфейс
-        # при следующем "событии" (нажатие, перезагрузка), 
-        # вопрос сменится, так как current_q уже увеличен.
-        # При желании можно попросить пользователя вручную нажать «Next question» 
-        # или обновить страницу.
+        # Нет вызова experimental_rerun(), но при нажатии кнопки всё равно произойдёт перерисовка,
+        # и появится следующий вопрос.
