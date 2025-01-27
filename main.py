@@ -2,68 +2,80 @@ import streamlit as st
 import random
 import time
 
-# 1) Инициализация сессии
+st.set_page_config(page_title="Interview Math Test", layout="centered")
+
+# Инициализируем сессию
+if "test_started" not in st.session_state:
+    st.session_state.test_started = False
+if "start_time" not in st.session_state:
+    st.session_state.start_time = None
+if "time_left" not in st.session_state:
+    st.session_state.time_left = 300  # 5 минут в секундах
+if "current_q" not in st.session_state:
+    st.session_state.current_q = 0
 if "questions" not in st.session_state:
     # Генерируем 50 (A, B)
-    st.session_state.questions = [(random.randint(10,99), random.randint(10,99)) for _ in range(50)]
-    
-    # Здесь храним ответы пользователя
-    st.session_state.user_answers = [None]*50
-    
-    # Текущий индекс вопроса
-    st.session_state.current_q = 0
-    
-    # Установим дедлайн (через 5 минут = 300 секунд)
-    st.session_state.end_time = time.time() + 300
+    st.session_state.questions = [(random.randint(10, 99), random.randint(10, 99)) for _ in range(50)]
+if "user_answers" not in st.session_state:
+    st.session_state.user_answers = [None] * 50
 
-st.title("Interview Math Test")
-st.write("You have **5 minutes** to solve 50 questions. Each question is of the form `2*A - B`. "
-         "Submit your answer to move to the next question. Good luck!")
-
-# 2) Считаем, сколько осталось времени
-time_left = int(st.session_state.end_time - time.time())
-if time_left < 0:
-    time_left = 0
-
-# Показываем оставшееся время
-st.markdown(f"**Time left:** {time_left} seconds")
-
-current_q = st.session_state.current_q
-
-# 3) Если время вышло или все 50 отвечены — итог
-if time_left == 0 or current_q >= 50:
-    # Подсчёт результатов
+# Функция подсчёта очков
+def calculate_score():
     correct_count = 0
     for i, (A, B) in enumerate(st.session_state.questions):
-        correct_value = 2*A - B
-        user_val = st.session_state.user_answers[i]
-        # Сравниваем, если ответ был введён
-        if user_val is not None:
+        correct_val = 2 * A - B
+        ans = st.session_state.user_answers[i]
+        if ans is not None:
             try:
-                if int(user_val) == correct_value:
+                if int(ans) == correct_val:
                     correct_count += 1
             except:
                 pass
+    return correct_count
 
-    st.write(f"**Your final score:** {correct_count} out of 50")
+st.title("Interview Math Test")
+st.write("Solve each expression: **2*A - B**. You have 5 minutes in total.")
 
-    # Блокируем дальнейшие действия
-    st.stop()
+# Если тест ещё не начат
+if not st.session_state.test_started:
+    st.markdown("Press the button below to begin.")
+    if st.button("Start"):
+        st.session_state.test_started = True
+        st.session_state.start_time = time.time()  # Запоминаем момент старта
+        st.experimental_rerun()
+else:
+    # Считаем, сколько осталось времени
+    elapsed = time.time() - st.session_state.start_time
+    st.session_state.time_left = 300 - int(elapsed)
+    if st.session_state.time_left < 0:
+        st.session_state.time_left = 0
 
-# 4) Отображаем прогресс
-progress_val = current_q / 50
-st.progress(progress_val)
+    # Отображаем таймер крупно
+    st.markdown(
+        f"<h2 style='text-align: center; color: red;'>Time left: {st.session_state.time_left} sec</h2>",
+        unsafe_allow_html=True
+    )
 
-# 5) Показываем текущий вопрос
-A, B = st.session_state.questions[current_q]
-st.subheader(f"Question {current_q + 1} of 50")
-user_input = st.text_input(f"Calculate 2*{A} - {B} =", key=f"answer_{current_q}")
+    # Автообновление раз в 1000 мс (1 сек), чтобы таймер менялся автоматически
+    st.experimental_autorefresh(interval=1000, limit=None)
 
-# 6) Кнопка "Submit"
-if st.button("Submit"):
-    # Сохраняем ответ
-    st.session_state.user_answers[current_q] = user_input
-    # Переходим к следующему вопросу
-    st.session_state.current_q += 1
-    # Перезагружаем интерфейс (чтобы обновилось всё автоматически)
-    st.experimental_rerun()
+    # Если время вышло или все вопросы пройдены — финальный счёт
+    if st.session_state.time_left == 0 or st.session_state.current_q >= 50:
+        score = calculate_score()
+        st.write(f"**Your final score:** {score} out of 50")
+        st.stop()
+
+    # Прогресс (от 0 до 1)
+    progress_val = st.session_state.current_q / 50
+    st.progress(progress_val)
+
+    # Текущий вопрос
+    A, B = st.session_state.questions[st.session_state.current_q]
+    st.subheader(f"Question {st.session_state.current_q + 1} of 50")
+    user_input = st.text_input(f"Calculate 2*{A} - {B} =", key=f"answer_{st.session_state.current_q}")
+
+    # Кнопка "Submit" — сохраняем ответ и переходим к следующему
+    if st.button("Submit"):
+        st.session_state.user_answers[st.session_state.current_q] = user_input
+        st.session_state.current_q += 1
+        st.experimental_rerun()
